@@ -1,13 +1,13 @@
 import sys
 from PyQt5 import uic
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QPushButton, QWidget, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QPushButton, QWidget, QPlainTextEdit
 from PyQt5 import QtCore, QtGui
 import pyautogui  # screenshot
 import pytesseract  # python tesseract (for ocr)
 
 form_class = uic.loadUiType("./mainWindow.ui")[0]
 
-# sub_class = uic.loadUiType("./subWindow.ui")[0]
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
 
 
 class SubWindow(QDialog):
@@ -133,10 +133,11 @@ class MyApp(QMainWindow, form_class):
                 './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
 
             # ocr processing
-            custom_config = r'--oem 3 --psm 6'
-            ret = pytesseract.image_to_string(img, config=custom_config)
+            custom_config = r'--oem 3 --psm 4'
+            ret = pytesseract.image_to_string(
+                img, lang='eng+kor', config=custom_config)
 
-            print(ret)
+            self.plainTextEdit.setPlainText(ret)
         else:
             print('subClass is closed')
 
