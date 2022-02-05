@@ -35,7 +35,7 @@
    <locale language="Korean" country="SouthKorea"/>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QLabel" name="WidthLabel">
+   <widget class="QLabel" name="widthLabel">
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -48,7 +48,7 @@
      <string>0</string>
     </property>
    </widget>
-   <widget class="QLabel" name="HeightLabel">
+   <widget class="QLabel" name="heightLabel">
     <property name="geometry">
      <rect>
       <x>70</x>
@@ -147,6 +147,16 @@
     </property>
     <property name="text">
      <string>OpenSubWindow</string>
+    </property>
+   </widget>
+   <widget class="QListWidget" name="listWidget">
+    <property name="geometry">
+     <rect>
+      <x>120</x>
+      <y>10</y>
+      <width>71</width>
+      <height>20</height>
+     </rect>
     </property>
    </widget>
   </widget>

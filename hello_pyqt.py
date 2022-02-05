@@ -1,25 +1,32 @@
 import sys
 from PyQt5 import uic
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog
+from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QPushButton, QWidget, QLabel
 from PyQt5 import QtCore, QtGui
+import pyautogui  # screenshot
+import pytesseract  # python tesseract (for ocr)
 
 form_class = uic.loadUiType("./mainWindow.ui")[0]
 
-sub_class = uic.loadUiType("./subWindow.ui")[0]
+# sub_class = uic.loadUiType("./subWindow.ui")[0]
 
 
-class SubWindow(QDialog, sub_class):
+class SubWindow(QDialog):
     dirty = True
+    regionChanged = QtCore.pyqtSignal()
 
     def __init__(self):
-        super().__init__()
-        self.setupUi(self)
+        # super().__init__()
+        QDialog.__init__(self)
+        uic.loadUi('./subWindow.ui', self)
+        # self.setWindowFlag(QtCore.Qt.FramelessWindowHint)
 
     def updateMask(self):
         # get the *whole* window geometry, including its titlebar and borders
         frameRect = self.frameGeometry()
 
         # get the grabWidget geometry and remap it to global coordinates
+        # grabWidget.geometry()를 하면 처음에는 dialog coordinate으로 나온다 (ex. (0,0, 368,265))
+        # topleft가 0기준인데 global coord로 바꿔준다
         grabGeometry = self.grabWidget.geometry()
         grabGeometry.moveTopLeft(
             self.grabWidget.mapToGlobal(QtCore.QPoint(0, 0)))
@@ -40,6 +47,7 @@ class SubWindow(QDialog, sub_class):
         # "subtract" the grabWidget rectangle to get a mask that only contains
         # the window titlebar, margins and panel
         region -= QtGui.QRegion(grabGeometry)
+
         self.setMask(region)
 
         # update the grab size according to grabWidget geometry
@@ -52,6 +60,15 @@ class SubWindow(QDialog, sub_class):
         # paintEvent, there's no need to update the mask until then; see below
         if not self.dirty:
             self.updateMask()
+
+        self.regionChanged.emit()
+
+    def getRegion(self):
+        grabWidget: QWidget = self.grabWidget
+        grabGeometry = grabWidget.geometry()
+        grabGeometry.moveTopLeft(
+            self.grabWidget.mapToGlobal(QtCore.QPoint(0, 0)))
+        return grabGeometry
 
     def paintEvent(self, event):
         super(SubWindow, self).paintEvent(event)
@@ -69,6 +86,10 @@ class SubWindow(QDialog, sub_class):
             self.updateMask()
             self.dirty = False
 
+    def moveEvent(self, event):
+        super(SubWindow, self).moveEvent(event)
+        self.regionChanged.emit()
+
 
 class MyApp(QMainWindow, form_class):
 
@@ -83,7 +104,15 @@ class MyApp(QMainWindow, form_class):
 
         self.OpenSubWindow.stateChanged.connect(self.showDialog)
 
+        # .ui 파일에있는 컴포넌트들은 타입을 유추를 못하는듯..
+        pushButton2: QPushButton = self.pushButton_2
+        pushButton2.clicked.connect(self.Once)
+
         self.win.closeEvent = self.closeDialog
+        self.win.regionChanged.connect(self.updateRegion)
+
+    def closeEvent(self, event):
+        self.win.close()
 
     def showDialog(self, state):
         if state > 1:
@@ -93,6 +122,28 @@ class MyApp(QMainWindow, form_class):
 
     def closeDialog(self, event):
         self.OpenSubWindow.setChecked(False)
+
+    def Once(self):
+        if self.win.isVisible():
+            r = self.win.getRegion()
+            # pyautogui.screenshot(
+            #     './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
+
+            img = pyautogui.screenshot(
+                './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
+
+            # ocr processing
+            custom_config = r'--oem 3 --psm 6'
+            ret = pytesseract.image_to_string(img, config=custom_config)
+
+            print(ret)
+        else:
+            print('subClass is closed')
+
+    def updateRegion(self):
+        r = self.win.getRegion()
+        self.widthLabel.setText(str(r.width()))
+        self.heightLabel.setText(str(r.height()))
 
         # 만약 'moduleA.py'라는 코드를 import해서 예제 코드를 수행하면
         #  __name__ 은 'moduleA'가 됩니다. 그렇지 않고 코드를 직접 실행한다면
