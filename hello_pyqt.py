@@ -1,14 +1,16 @@
 import sys
+import os
 from PyQt6 import uic
-from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QPushButton, QWidget, QPlainTextEdit
+from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QPushButton, QWidget, QSizeGrip
 from PyQt6 import QtCore, QtGui
 import pyscreeze  # screenshot
-import pytesseract  # python tesseract (for 
+import pytesseract  # python tesseract 
 
-form_class = uic.loadUiType("./mainWindow.ui")[0]
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+form_class = uic.loadUiType(BASE_DIR + r'\mainWindow.ui')[0]
 
 # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
-
 
 class SubWindow(QDialog):
     dirty = True
@@ -18,47 +20,45 @@ class SubWindow(QDialog):
         # super().__init__()
         QDialog.__init__(self)
         print('SubWindow`s device pixel ratio', self.devicePixelRatio())
-        uic.loadUi('./subWindow.ui', self)
-        self.setWindowOpacity(0.5)
+        uic.loadUi(BASE_DIR + r'\subWindow.ui', self)
+
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
-        # self.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+        self.setWindowFlags(QtCore.Qt.WindowType.WindowStaysOnTopHint | QtCore.Qt.WindowType.FramelessWindowHint)
+
+        self.gripSize = 16
+        self.grips = []
+        for i in range(4):
+            grip = QSizeGrip(self)
+            grip.resize(self.gripSize, self.gripSize)
+            self.grips.append(grip)
 
     def updateMask(self):
-        # get the *whole* window geometry, including its titlebar and borders
         frameRect = self.frameGeometry()
-
-        # get the grabWidget geometry and remap it to global coordinates
-        # grabWidget.geometry()를 하면 처음에는 dialog coordinate으로 나온다 (ex. (0,0, 368,265))
-        # topleft가 0기준인데 global coord로 바꿔준다
+        
         grabGeometry = self.grabWidget.geometry()
+
+        # geometry가 dialog부터가 아니라 자기바로위의 위젯기준으로 나온다
         grabGeometry.moveTopLeft(
-            self.grabWidget.mapToGlobal(QtCore.QPoint(0, 0)))
+            self.grabWidget.mapTo(self, QtCore.QPoint(0,0)))
+        
+        frameRect.moveTopLeft(QtCore.QPoint(0,0))
 
-        # get the actual margins between the grabWidget and the window margins
-        left = frameRect.left() - grabGeometry.left()
-        top = frameRect.top() - grabGeometry.top()
-        right = frameRect.right() - grabGeometry.right()
-        bottom = frameRect.bottom() - grabGeometry.bottom()
-
-        # reset the geometries to get "0-point" rectangles for the mask
-        frameRect.moveTopLeft(QtCore.QPoint(0, 0))
-        grabGeometry.moveTopLeft(QtCore.QPoint(0, 0))
-
-        # create the base mask region, adjusted to the margins between the
-        # grabWidget and the window as computed above
-        region = QtGui.QRegion(frameRect.adjusted(left, top, right, bottom))
-        # "subtract" the grabWidget rectangle to get a mask that only contains
-        # the window titlebar, margins and panel
+        region = QtGui.QRegion(frameRect)
         region -= QtGui.QRegion(grabGeometry)
 
         self.setMask(region)
 
-        # update the grab size according to grabWidget geometry
-        # self.widthLabel.setText(str(self.grabWidget.width()))
-        # self.heightLabel.setText(str(self.grabWidget.height()))
-
     def resizeEvent(self, event):
         super(SubWindow, self).resizeEvent(event)
+        rect = self.rect()
+        # top left grip doesn't need to be moved...
+        # top right
+        self.grips[1].move(rect.right() - self.gripSize, 0)
+        # bottom right
+        self.grips[2].move(
+            rect.right() - self.gripSize, rect.bottom() - self.gripSize)
+        # bottom left
+        self.grips[3].move(0, rect.bottom() - self.gripSize)
         # the first resizeEvent is called *before* any first-time showEvent and
         # paintEvent, there's no need to update the mask until then; see below
         if not self.dirty:
@@ -93,15 +93,21 @@ class SubWindow(QDialog):
         super(SubWindow, self).moveEvent(event)
         self.regionChanged.emit()
 
+    def mousePressEvent(self, event):
+        self.oldPos = event.globalPosition().toPoint()
+
+    def mouseMoveEvent(self, event):
+        delta = QtCore.QPoint(event.globalPosition().toPoint() - self.oldPos)
+        self.move(self.x() + delta.x(), self.y() + delta.y())
+        self.oldPos = event.globalPosition().toPoint()
+
 
 class MyApp(QMainWindow, form_class):
-
     def __init__(self):
         super().__init__()
         QMainWindow.__init__(self)
         self.setupUi(self)
         self.show()
-
 
         self.win = SubWindow()
         self.win.setModal(False)
@@ -140,18 +146,18 @@ class MyApp(QMainWindow, form_class):
             r = transform.mapRect(r)
             print(r.left(), r.top(), r.width(), r.height())
 
-            # pyscreeze.screenshot(
-            #     './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
+            pyscreeze.screenshot(
+                './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
 
-            img = pyscreeze.screenshot(region=(r.left(), r.top(), r.width(), r.height()))
+            # img = pyscreeze.screenshot(region=(r.left(), r.top(), r.width(), r.height()))
 
-            # ocr processing
-            custom_config = r'--oem 3 --psm 4'
-            ret = pytesseract.image_to_string(
-                img, lang='eng+kor', config=custom_config)
+            # # ocr processing
+            # custom_config = r'--oem 3 --psm 4'
+            # ret = pytesseract.image_to_string(
+            #     img, lang='eng+kor', config=custom_config)
 
-            print('ret', ret)
-            self.plainTextEdit.setPlainText(ret)
+            # print('ret', ret)
+            # self.plainTextEdit.setPlainText(ret)
         else:
             print('subClass is closed')
 

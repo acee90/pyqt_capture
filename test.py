@@ -5,8 +5,8 @@ app = QtWidgets.QApplication(sys.argv)
 
 # create invisble widget
 window = QtWidgets.QWidget()
-window.setAttribute(QtCore.Qt.WA_TranslucentBackground)
-window.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+window.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
+window.setWindowFlags(QtCore.Qt.WindowType.FramelessWindowHint)
 window.setFixedSize(800, 600)
 
 # add visible child widget, when this widget is transparent it will also be invisible
