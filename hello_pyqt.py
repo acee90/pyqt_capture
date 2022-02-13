@@ -1,13 +1,13 @@
 import sys
-from PyQt5 import uic
-from PyQt5.QtWidgets import QApplication, QMainWindow, QDialog, QPushButton, QWidget, QPlainTextEdit
-from PyQt5 import QtCore, QtGui
-import pyautogui  # screenshot
-import pytesseract  # python tesseract (for ocr)
+from PyQt6 import uic
+from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QPushButton, QWidget, QPlainTextEdit
+from PyQt6 import QtCore, QtGui
+import pyscreeze  # screenshot
+import pytesseract  # python tesseract (for 
 
 form_class = uic.loadUiType("./mainWindow.ui")[0]
 
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
 
 
 class SubWindow(QDialog):
@@ -17,7 +17,10 @@ class SubWindow(QDialog):
     def __init__(self):
         # super().__init__()
         QDialog.__init__(self)
+        print('SubWindow`s device pixel ratio', self.devicePixelRatio())
         uic.loadUi('./subWindow.ui', self)
+        self.setWindowOpacity(0.5)
+        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
         # self.setWindowFlag(QtCore.Qt.FramelessWindowHint)
 
     def updateMask(self):
@@ -99,6 +102,7 @@ class MyApp(QMainWindow, form_class):
         self.setupUi(self)
         self.show()
 
+
         self.win = SubWindow()
         self.win.setModal(False)
 
@@ -126,17 +130,27 @@ class MyApp(QMainWindow, form_class):
     def Once(self):
         if self.win.isVisible():
             r = self.win.getRegion()
-            # pyautogui.screenshot(
+            print(r.left(), r.top(), r.width(), r.height())
+
+            # mac의 경우 high dpi라서 geometry()로 얻은 좌표계와 physical pixel 사이에 맞지않음.
+            # 그래서 devicePixelRatio()로 스케일링 해주는 과정 필요하다
+            transform = QtGui.QTransform()
+            transform.scale(self.devicePixelRatio(), self.devicePixelRatio())
+
+            r = transform.mapRect(r)
+            print(r.left(), r.top(), r.width(), r.height())
+
+            # pyscreeze.screenshot(
             #     './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
 
-            img = pyautogui.screenshot(
-                './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
+            img = pyscreeze.screenshot(region=(r.left(), r.top(), r.width(), r.height()))
 
             # ocr processing
             custom_config = r'--oem 3 --psm 4'
             ret = pytesseract.image_to_string(
                 img, lang='eng+kor', config=custom_config)
 
+            print('ret', ret)
             self.plainTextEdit.setPlainText(ret)
         else:
             print('subClass is closed')
@@ -155,5 +169,14 @@ class MyApp(QMainWindow, form_class):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    # app.setAttribute(QtCore.Qt.ApplicationAttribute.AA_Use96Dpi)
+    # QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy()
+
+    
+    screens = QtGui.QGuiApplication.screens()
+    i =0
+    for screen in screens:
+        print(i, 'screen geometry', screen.geometry(), screen.devicePixelRatio())
+
     ex = MyApp()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
