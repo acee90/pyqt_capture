@@ -1,16 +1,95 @@
 import sys
 import os
+import typing
 from PyQt6 import uic
-from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QPushButton, QWidget, QSizeGrip
+from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, \
+                            QWidget, QSizeGrip
 from PyQt6 import QtCore, QtGui
 import pyscreeze  # screenshot
-import pytesseract  # python tesseract 
+import pytesseract  # python tesseract
+from googletrans import Translator
+from qt_material import apply_stylesheet
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-form_class = uic.loadUiType(BASE_DIR + r'\mainWindow.ui')[0]
-
 # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
+
+class SecondWindow(QDialog):
+    selectRect = QtCore.QRect()
+    def __init__(self, parent: typing.Optional[QWidget] = ...) -> None:
+        super().__init__(parent)
+
+        self.setStyleSheet("background-color: black")
+        self.setWindowOpacity(0.7)
+        self.setWindowState(QtCore.Qt.WindowState.WindowFullScreen)
+        self.setWindowFlags(QtCore.Qt.WindowType.Window | 
+                            QtCore.Qt.WindowType.FramelessWindowHint |
+                            QtCore.Qt.WindowType.WindowStaysOnTopHint)
+        self.setMouseTracking(False)
+
+        # shortcut 등록
+        self.cancel = QtGui.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key.Key_Escape), self)
+        self.cancel.activated.connect(self.Cancel)
+
+    def showEvent(self, a0: QtGui.QShowEvent) -> None:
+        self.selectRect = QtCore.QRect()
+        self.startPos = QtCore.QPoint()
+        self.endPos = QtCore.QPoint()
+        self.updateMask()
+        return super().showEvent(a0)
+
+    def Cancel(self):
+        self.hide()
+        self.parent().show()
+    
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mousePressEvent(event)
+        self.startPos = event.pos()
+        self.endPos = self.startPos
+    
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
+        super().mouseMoveEvent(event)
+        self.endPos = event.pos()
+        self.updateMask()
+        self.update()
+
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
+        # globalPosition으로 매핑 (할필요가 없다? frameless + fullscreen 이라서?)
+        # self.selectedRegion = QtGui.QRegion(self.selectRect)
+
+        # accept면 close, reject이면 hide 로 구분한다?
+        self.close()
+        self.parent().show()
+
+    def updateMask(self):
+        #뒤에 비쳐 보이도록
+        frameRect = self.frameGeometry()
+        frameRect.moveTopLeft(QtCore.QPoint(0,0))
+
+        x = min(self.startPos.x(), self.endPos.x())
+        y = min(self.startPos.y(), self.endPos.y())
+        w = abs(self.startPos.x() - self.endPos.x())
+        h = abs(self.startPos.y() - self.endPos.y())
+
+        self.selectRect = QtCore.QRect(x, y, w, h)
+
+        region = QtGui.QRegion(frameRect)
+        region -= QtGui.QRegion(x, y, w, h)
+
+        self.setMask(region)
+
+    # 이건 flicker 생겨서 좀 해결하고 주석풀어야 할 듯..
+    # def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+    #     qp = QtGui.QPainter()
+    #     qp.begin(self)
+        
+    #     #draw white rect
+    #     qpen = QtGui.QPen(QtCore.Qt.GlobalColor.white, 2, QtCore.Qt.PenStyle.SolidLine)
+    #     qp.setPen(qpen)
+    #     qp.drawRect(self.selectRect)
+
+    #     qp.end()
+    #     return super().paintEvent(event)
 
 class SubWindow(QDialog):
     dirty = True
@@ -20,7 +99,7 @@ class SubWindow(QDialog):
         # super().__init__()
         QDialog.__init__(self)
         print('SubWindow`s device pixel ratio', self.devicePixelRatio())
-        uic.loadUi(BASE_DIR + r'\subWindow.ui', self)
+        uic.loadUi(os.path.join(BASE_DIR,'subWindow.ui'), self)
 
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowFlags(QtCore.Qt.WindowType.WindowStaysOnTopHint | QtCore.Qt.WindowType.FramelessWindowHint)
@@ -102,27 +181,45 @@ class SubWindow(QDialog):
         self.oldPos = event.globalPosition().toPoint()
 
 
-class MyApp(QMainWindow, form_class):
+class MyApp(QMainWindow):
     def __init__(self):
         super().__init__()
         QMainWindow.__init__(self)
-        self.setupUi(self)
+        uic.loadUi(os.path.join(BASE_DIR,'firstWindow.ui'), self)
+        
+        # self.setupUi(self)
+        self.setStatusBarBySize(0, 0)
         self.show()
 
-        self.win = SubWindow()
-        self.win.setModal(False)
+        # self.win = SubWindow()
+        # self.win.setModal(False)
 
-        self.OpenSubWindow.stateChanged.connect(self.showDialog)
+        # self.OpenSubWindow.stateChanged.connect(self.showDialog)
 
-        # .ui 파일에있는 컴포넌트들은 타입을 유추를 못하는듯..
-        pushButton2: QPushButton = self.pushButton_2
-        pushButton2.clicked.connect(self.Once)
+        # # .ui 파일에있는 컴포넌트들은 타입을 유추를 못하는듯..
+        # pushButton2: QPushButton = self.pushButton_2
+        # pushButton2.clicked.connect(self.Once)
 
-        self.win.closeEvent = self.closeDialog
-        self.win.regionChanged.connect(self.updateRegion)
+        # self.win.closeEvent = self.closeDialog
+        # self.win.regionChanged.connect(self.updateRegion)
 
-    def closeEvent(self, event):
-        self.win.close()
+        self.CaptureButton.clicked.connect(self.CaptureButtonClicked)
+
+        self.selector = SecondWindow(self)
+        self.selector.closeEvent = self.closeSelector
+
+    def CaptureButtonClicked(self):
+        self.selector.show()
+
+        self.hide()
+
+    def setStatusBarBySize(self, width: int, height: int):
+        self.statusBar().showMessage(f'{width:>4d} x {height:>4d}')
+
+    def closeSelector(self, event):
+        self.setStatusBarBySize(self.selector.selectRect.width(), self.selector.selectRect.height())
+        # self.statusBar().showMessage(f'{self.selector.selectRect.width():4f} x {self.selector.selectRect.height():4f}')
+        # TODO: show ThirdWindow 
 
     def showDialog(self, state):
         if state > 1:
@@ -178,6 +275,7 @@ if __name__ == '__main__':
     # app.setAttribute(QtCore.Qt.ApplicationAttribute.AA_Use96Dpi)
     # QtGui.QGuiApplication.setHighDpiScaleFactorRoundingPolicy()
 
+    apply_stylesheet(app, theme='dark_blue.xml')
     
     screens = QtGui.QGuiApplication.screens()
     i =0

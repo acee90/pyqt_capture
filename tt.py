@@ -1,44 +1,16 @@
 import sys
-import os
-from PyQt6 import uic
-from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, QPushButton, QWidget, QPlainTextEdit
-from PyQt6 import QtCore, QtGui
+from PyQt6 import QtWidgets
+# from PySide2 import QtWidgets
+# from PyQt5 import QtWidgets
+from qt_material import apply_stylesheet
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# create the application and the main window
+app = QtWidgets.QApplication(sys.argv)
+window = QtWidgets.QMainWindow()
 
-class MyApp(QMainWindow):
-    def __init__(self):
-        # super().__init__()
-        QMainWindow.__init__(self)
-        uic.loadUi(BASE_DIR + r'\mainwindow2.ui', self)
+# setup stylesheet
+apply_stylesheet(app, theme='dark_teal.xml')
 
-        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setWindowFlags(QtCore.Qt.WindowType.FramelessWindowHint)
-
-        self.show()
-    
-    def updateMask(self):
-        frameRect = self.frameGeometry()
-
-        outerRect = self.widget.geometry()
-        innerRect = self.widget_3.geometry()
-        # innerRect.moveTopLeft(
-        #     self.widget_3.mapToGlobal(QtCore.QPoint(0, 0)))
-        # # innerRegion.moveTopLeft(QtCore.QPoint(0,0))
-        print(frameRect, outerRect, innerRect)
-
-        frameRect.moveTopLeft(QtCore.QPoint(0,0))
-
-        region = QtGui.QRegion(frameRect)
-        region -= QtGui.QRegion(innerRect)
-
-        self.setMask(region)    
-
-    def paintEvent(self, event):
-        super(QMainWindow, self).paintEvent(event)
-        self.updateMask()
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    ex = MyApp()
-    sys.exit(app.exec())
+# run
+window.show()
+app.exec()
