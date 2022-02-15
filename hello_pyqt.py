@@ -95,14 +95,15 @@ class SubWindow(QDialog):
     dirty = True
     regionChanged = QtCore.pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, selectedRect: QtCore.QRect):
         # super().__init__()
         QDialog.__init__(self)
-        print('SubWindow`s device pixel ratio', self.devicePixelRatio())
         uic.loadUi(os.path.join(BASE_DIR,'subWindow.ui'), self)
 
+        self.selectedRect = selectedRect
+
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setWindowFlags(QtCore.Qt.WindowType.WindowStaysOnTopHint | QtCore.Qt.WindowType.FramelessWindowHint)
+        self.setWindowFlags(QtCore.Qt.WindowType.SubWindow | QtCore.Qt.WindowType.WindowStaysOnTopHint | QtCore.Qt.WindowType.FramelessWindowHint)
 
         self.gripSize = 16
         self.grips = []
@@ -110,6 +111,24 @@ class SubWindow(QDialog):
             grip = QSizeGrip(self)
             grip.resize(self.gripSize, self.gripSize)
             self.grips.append(grip)
+    
+    def showByGeometry(self, r: QtCore.QRect):
+        self.show()
+
+        # calc margin
+        frameRect = self.frameGeometry()
+        frameRect.moveTopLeft(QtCore.QPoint(0,0))
+
+        grabWidgetRect: QtCore.QRect = self.grabWidget.geometry()
+
+        tl = grabWidgetRect.topLeft()
+
+        br = frameRect.bottomRight() - grabWidgetRect.bottomRight()
+
+        r.adjust(-tl.x(), -tl.y(), br.x(), br.y())
+
+        self.setGeometry(r)
+        # self.updateMask()
 
     def updateMask(self):
         frameRect = self.frameGeometry()
@@ -172,16 +191,17 @@ class SubWindow(QDialog):
         super(SubWindow, self).moveEvent(event)
         self.regionChanged.emit()
 
-    def mousePressEvent(self, event):
-        self.oldPos = event.globalPosition().toPoint()
+    # def mousePressEvent(self, event):
+    #     self.oldPos = event.globalPosition().toPoint()
 
-    def mouseMoveEvent(self, event):
-        delta = QtCore.QPoint(event.globalPosition().toPoint() - self.oldPos)
-        self.move(self.x() + delta.x(), self.y() + delta.y())
-        self.oldPos = event.globalPosition().toPoint()
+    # def mouseMoveEvent(self, event):
+    #     delta = QtCore.QPoint(event.globalPosition().toPoint() - self.oldPos)
+    #     self.move(self.x() + delta.x(), self.y() + delta.y())
+    #     self.oldPos = event.globalPosition().toPoint()
 
 
 class MyApp(QMainWindow):
+    selectedRect = QtCore.QRect()
     def __init__(self):
         super().__init__()
         QMainWindow.__init__(self)
@@ -191,49 +211,51 @@ class MyApp(QMainWindow):
         self.setStatusBarBySize(0, 0)
         self.show()
 
-        # self.win = SubWindow()
-        # self.win.setModal(False)
-
-        # self.OpenSubWindow.stateChanged.connect(self.showDialog)
-
-        # # .ui 파일에있는 컴포넌트들은 타입을 유추를 못하는듯..
-        # pushButton2: QPushButton = self.pushButton_2
-        # pushButton2.clicked.connect(self.Once)
-
-        # self.win.closeEvent = self.closeDialog
-        # self.win.regionChanged.connect(self.updateRegion)
-
-        self.CaptureButton.clicked.connect(self.CaptureButtonClicked)
+        # connect event
+        self.startButton.clicked.connect(self.determineRegion)
+        self.pictureButton.clicked.connect(self.takePicture)
 
         self.selector = SecondWindow(self)
         self.selector.closeEvent = self.closeSelector
 
-    def CaptureButtonClicked(self):
+        self.thirdWin = SubWindow(self)
+        self.thirdWin.setModal(False)
+        self.thirdWin.regionChanged.connect(lambda: self.updateRegion(self.thirdWin.getRegion()))
+
+        self.cancel = QtGui.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key.Key_Escape), self)
+        self.cancel.activated.connect(self.Cancel)
+
+    def Cancel(self):
+        self.selector.close()
+        self.thirdWin.close()
+
+    def determineRegion(self):
+        self.thirdWin.close()
         self.selector.show()
 
         self.hide()
+
+    def updateRegion(self, r: QtCore.QRect):
+        self.selectedRect = r
+        self.setStatusBarBySize(self.selectedRect.width(), self.selectedRect.height())
 
     def setStatusBarBySize(self, width: int, height: int):
         self.statusBar().showMessage(f'{width:>4d} x {height:>4d}')
 
     def closeSelector(self, event):
+        self.updateRegion(self.selector.selectRect)
         self.setStatusBarBySize(self.selector.selectRect.width(), self.selector.selectRect.height())
+        
+        self.thirdWin.showByGeometry(self.selector.selectRect)
         # self.statusBar().showMessage(f'{self.selector.selectRect.width():4f} x {self.selector.selectRect.height():4f}')
         # TODO: show ThirdWindow 
-
-    def showDialog(self, state):
-        if state > 1:
-            self.win.show()
-        else:
-            self.win.close()
 
     def closeDialog(self, event):
         self.OpenSubWindow.setChecked(False)
 
-    def Once(self):
-        if self.win.isVisible():
-            r = self.win.getRegion()
-            print(r.left(), r.top(), r.width(), r.height())
+    def takePicture(self):
+        if self.thirdWin.isVisible():
+            r = self.thirdWin.getRegion()
 
             # mac의 경우 high dpi라서 geometry()로 얻은 좌표계와 physical pixel 사이에 맞지않음.
             # 그래서 devicePixelRatio()로 스케일링 해주는 과정 필요하다
@@ -241,7 +263,6 @@ class MyApp(QMainWindow):
             transform.scale(self.devicePixelRatio(), self.devicePixelRatio())
 
             r = transform.mapRect(r)
-            print(r.left(), r.top(), r.width(), r.height())
 
             pyscreeze.screenshot(
                 './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
@@ -257,11 +278,6 @@ class MyApp(QMainWindow):
             # self.plainTextEdit.setPlainText(ret)
         else:
             print('subClass is closed')
-
-    def updateRegion(self):
-        r = self.win.getRegion()
-        self.widthLabel.setText(str(r.width()))
-        self.heightLabel.setText(str(r.height()))
 
         # 만약 'moduleA.py'라는 코드를 import해서 예제 코드를 수행하면
         #  __name__ 은 'moduleA'가 됩니다. 그렇지 않고 코드를 직접 실행한다면
