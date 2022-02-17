@@ -3,16 +3,17 @@ import os
 import typing
 from PyQt6 import uic
 from PyQt6.QtWidgets import QApplication, QMainWindow, QDialog, \
-                            QWidget, QSizeGrip
+                            QWidget, QSizeGrip, QMessageBox, QCheckBox
 from PyQt6 import QtCore, QtGui
 import pyscreeze  # screenshot
-import pytesseract  # python tesseract
+import pytesseract
 from googletrans import Translator
 from qt_material import apply_stylesheet
+import requests 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract'
 
 class SecondWindow(QDialog):
     selectRect = QtCore.QRect()
@@ -253,6 +254,33 @@ class MyApp(QMainWindow):
     def closeDialog(self, event):
         self.OpenSubWindow.setChecked(False)
 
+    def translate(self, ocr_string):
+        # papapgo 
+        detect_url = "https://openapi.naver.com/v1/papago/detectLangs"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "X-Naver-Client-Id": "vNvZNTNJnKEeD1qh8gZO",
+            "X-Naver-Client-Secret": "9y0hpEuZDx"
+        }
+
+        response = requests.post(detect_url, headers=headers, params={"query": ocr_string})
+        response.raise_for_status()
+        source_lang = response.json()['langCode']
+        # TODO: change combobox item to source_lang
+
+        translate_url = "https://openapi.naver.com/v1/papago/n2mt"
+        data={"source": source_lang, "target": "ko", "text": ocr_string}
+        response = requests.post(translate_url, headers=headers, data=data)
+
+        if response.status_code == 200:
+            print (response.json())
+            if self.checkBox_appendMode.checkState() != QtCore.Qt.CheckState.Checked:
+                self.texteEdit_translate.setPlainText(response.json()['message']['result']['translatedText'])
+            else:
+                self.texteEdit_translate.appendPlainText(response.json()['message']['result']['translatedText'])
+        else:
+            QMessageBox.about(self, 'Error', response.json())
+
     def takePicture(self):
         if self.thirdWin.isVisible():
             r = self.thirdWin.getRegion()
@@ -264,18 +292,18 @@ class MyApp(QMainWindow):
 
             r = transform.mapRect(r)
 
-            pyscreeze.screenshot(
-                './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
+            # pyscreeze.screenshot(
+            #     './screenshot.png', region=(r.left(), r.top(), r.width(), r.height()))
 
-            # img = pyscreeze.screenshot(region=(r.left(), r.top(), r.width(), r.height()))
+            img = pyscreeze.screenshot(region=(r.left(), r.top(), r.width(), r.height()))
 
             # # ocr processing
-            # custom_config = r'--oem 3 --psm 4'
-            # ret = pytesseract.image_to_string(
-            #     img, lang='eng+kor', config=custom_config)
+            custom_config = r'--oem 3 --psm 4'
+            ret = pytesseract.image_to_string(
+                img, lang='eng+kor', config=custom_config)
 
-            # print('ret', ret)
-            # self.plainTextEdit.setPlainText(ret)
+            self.textEdit_ocr.setPlainText(ret)
+            self.translate(ret)
         else:
             print('subClass is closed')
 

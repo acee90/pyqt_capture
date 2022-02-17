@@ -133,10 +133,10 @@
                </spacer>
               </item>
               <item row="2" column="0" colspan="3">
-               <widget class="QPlainTextEdit" name="plainTextEdit_2"/>
+               <widget class="QPlainTextEdit" name="textEdit_ocr"/>
               </item>
               <item row="1" column="0" colspan="2">
-               <widget class="QComboBox" name="comboBox_2">
+               <widget class="QComboBox" name="combobox_source">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                   <horstretch>0</horstretch>
@@ -173,7 +173,7 @@
                </widget>
               </item>
               <item row="0" column="4">
-               <widget class="QCheckBox" name="checkBox">
+               <widget class="QCheckBox" name="checkBox_appendMode">
                 <property name="text">
                  <string>Append Mode</string>
                 </property>
@@ -203,7 +203,7 @@
                </widget>
               </item>
               <item row="1" column="3">
-               <widget class="QComboBox" name="comboBox_3">
+               <widget class="QComboBox" name="combobox_target">
                 <property name="sizePolicy">
                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
                   <horstretch>0</horstretch>
@@ -240,7 +240,7 @@
                </widget>
               </item>
               <item row="2" column="3" colspan="2">
-               <widget class="QPlainTextEdit" name="plainTextEdit"/>
+               <widget class="QPlainTextEdit" name="texteEdit_translate"/>
               </item>
               <item row="0" column="0">
                <widget class="QPushButton" name="pushButton">
